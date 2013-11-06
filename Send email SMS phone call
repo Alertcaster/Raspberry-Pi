@@ -1,0 +1,173 @@
+
+
+			$(function() {
+				var apikey = "009700645fG3PNvE";
+				var audioID = "75"; //Audio ID to be used for phone call
+				var alertcasterServer = "http://developer.alertcaster.com/"
+
+				/* Form Submission */
+				$( "#single-alert" ).submit(function( event ) {
+					event.preventDefault();
+
+					/* Hide the Success Alert if its currently displayed */
+					if($("#single-alert .alert").length > 0){
+						$("#single-alert .alert").remove();
+					}
+
+					/* Make sure the user has selected at least one type of alert */
+					if($("[name='alert-type']:checked").length==0){
+						alert("You must select at least one alert type.");
+						return false;
+					}
+
+					createAlert();
+				});
+				/*Form Submission*/
+
+				function createAlert(){
+					/* We must add the the recipeints info to the alert */
+					var alertData = ({
+					    "apikey" : apikey,
+					    "name" : "Temporary Alert",
+						"recipient" :  [
+								{
+								"name" : $("[name='first-name']").val() +", " + $("[name='last-name']").val()
+								}
+						]
+					});
+
+					/*Depending on the tye type of alert selected we add additional recipient info */
+					if($("#alert-type-email-value").is(':checked')){
+						alertData['email-subject'] = $("[name='email-subject']").val(); //Add the email subject
+						alertData['email-body'] = $("[name='email-message']").val(); // Add the email body
+						alertData['recipient'][0]['email'] = $("[name='email']").val(); // Add the recipeints email adress
+					}
+					if($("#alert-type-sms-value").is(':checked')){
+						alertData['sms'] = $("[name='sms-message']").val(); // Add the text message text
+						alertData['recipient'][0]['mobile'] = $("[name='phone']").val(); // Add the recipients mobile number
+					}
+					if($("#alert-type-phone-value").is(':checked')){
+						alertData['audio'] = audioID; // Add the audio ID
+						if(!$("#alert-type-sms-value").is(':checked')){
+							alertData['recipient'][0]['mobile'] = $("[name='phone']").val(); //If we are not also sending a text message add the mobile number
+						}
+					}
+
+					$.ajax({
+						url:  alertcasterServer + "developer/api/alert-create-simple",
+						global: false,
+					    type: "POST",
+					    data: alertData,
+					    dataType: "html",
+					    async: false,
+					    success: function(result){
+					        var res = $.parseJSON(result);
+					        if(res.status=="success"){
+					        	/* If the alert was created succesfull we are going to call a new function to triggerw it */
+					        	var triggerURL = res.trigger;
+					        	var alertID = res.id;
+					        	var recipientGroupID = res.details.recipient_group_id;
+					        	triggerAlert(triggerURL, alertID, recipientGroupID);
+					        }
+					    }
+					});
+				}
+
+				function triggerAlert(url, alertID, recipientGroupID){
+					$.get(url, function(data) {
+						/* If the alert was triggered succesfull we are going to call new functiosn to delete the alert, delete the recipient group and display a success alert */
+						deleteAlert(alertID);
+						deleteRecipientGroupID(recipientGroupID);
+						showSuccessMessage();
+					}).fail(function(data) {
+					});
+				}
+
+				function showSuccessMessage(){
+					/* Display an alert at the bottom of the form letting the user know the alert was created successfully */
+					if($("#single-alert .alert").length < 1){
+						$("#single-alert .row-fluid").append('<div class="alert alert-dismissable alert-success"><button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>Thank You, your alert has been sent.</div>');
+					}
+				}
+
+				function deleteAlert(id){
+					/* Function to delete alert after we have triggered it */
+					$.ajax({
+						url:  alertcasterServer + "developer/api/alert-delete",
+						global: false,
+					    type: "POST",
+					    data: ({
+					        "apikey" : apikey,
+					        "id" : id,
+						}),
+					    dataType: "html",
+					    async: false,
+					    success: function(result){
+					    	
+					    }
+					});						
+				}
+
+				function deleteRecipientGroupID(id){
+					/* Function to delete the temporary recipient group we created since are not going to re-use it in the future */
+					$.ajax({
+						url:  alertcasterServer + "developer/api/recipient-group-delete",
+						global: false,
+					    type: "POST",
+					    data: ({
+					        "apikey" : apikey,
+					        "id" : id,
+						}),
+					    dataType: "html",
+					    async: false,
+					    success: function(result){
+					       
+					    }
+					});
+				}
+
+				/*Show hide fields based on which alert is selected*/
+				$("[name='alert-type']").change(function() {
+					if($(this).is(':checked')){
+						switch($(this).val()){
+							case "email":
+								revealFieldset("alert-type-email", true);
+							break;
+							case "sms":
+								revealFieldset("alert-type-sms", true);
+								revealFieldset("alert-type-phone", true);
+
+							break;
+							case "phone":
+								revealFieldset("alert-type-phone", true);
+							break;
+						}
+					} else {
+						switch($(this).val()){
+							case "email":
+								revealFieldset("alert-type-email", false);
+							break;
+							case "sms":
+								revealFieldset("alert-type-sms", false);
+								if(!$("#alert-type-phone-value").is(':checked')){
+									revealFieldset("alert-type-phone", false);
+								}
+							break;
+							case "phone":
+								revealFieldset("alert-type-phone", false);
+							break;
+						}
+					}
+				});
+
+				function revealFieldset(fieldset, show){
+					if(show){
+						$("[data-conditional-fieldset=" + fieldset + "]").removeClass('hidden');
+						$("[data-conditional-fieldset=" + fieldset + "]").find('input, textarea').attr('required', 'true');
+					} else {
+						$("[data-conditional-fieldset=" + fieldset + "]").addClass('hidden');
+						$("[data-conditional-fieldset=" + fieldset + "]").find('input, textarea').removeAttr('required');
+					}
+				}
+				/*Show hide fields based on which alert is selected*/
+			});
